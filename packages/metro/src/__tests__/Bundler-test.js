@@ -4,29 +4,37 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
+ * @flow strict-local
  * @format
  * @oncall react_native
  */
 
-'use strict';
+import type {ConfigT} from 'metro-config';
+
+import Bundler from '../Bundler';
+import Transformer from '../DeltaBundler/Transformer';
+import DependencyGraph from '../node-haste/DependencyGraph';
+import {getDefaultConfig} from 'metro-config';
 
 jest.mock('../DeltaBundler/Transformer');
 jest.mock('../node-haste/DependencyGraph');
 
-const Bundler = require('../Bundler').default;
-const Transformer = require('../DeltaBundler/Transformer').default;
-const DependencyGraph = require('../node-haste/DependencyGraph').default;
-const {getDefaultValues} = require('metro-config').getDefaultConfig;
+type ClassMock = JestMockFn<ReadonlyArray<unknown>, unknown>;
+
+// $FlowFixMe[incompatible-type] Jest automocks the default export
+const MockTransformer: ClassMock = Transformer;
+// $FlowFixMe[incompatible-type] Jest automocks the default export
+const MockDependencyGraph: ClassMock = DependencyGraph;
 
 describe('Bundler', () => {
-  let config;
+  let config: ConfigT;
   let reporter;
 
   beforeEach(() => {
     reporter = {update: jest.fn()};
-    config = {...getDefaultValues('/'), reporter};
+    config = {...getDefaultConfig.getDefaultValues('/'), reporter};
 
-    DependencyGraph.mockImplementation(() => ({
+    MockDependencyGraph.mockImplementation(() => ({
       ready: jest.fn().mockResolvedValue(),
     }));
 
@@ -38,13 +46,17 @@ describe('Bundler', () => {
   });
 
   test.each([
-    ['ready', bundler => bundler.ready()],
-    ['transformFile', bundler => bundler.transformFile('/entry.js', {})],
+    ['ready', (bundler: Bundler) => bundler.ready()],
+    [
+      'transformFile',
+      // $FlowFixMe[incompatible-type] Transform options are unused before initialization fails
+      (bundler: Bundler) => bundler.transformFile('/entry.js', {}),
+    ],
   ])(
     'propagates Transformer initialization errors from %s',
     async (_method, invoke) => {
       const error = new Error('Transformer initialization failed');
-      Transformer.mockImplementation(() => {
+      MockTransformer.mockImplementation(() => {
         throw error;
       });
 
@@ -62,12 +74,12 @@ describe('Bundler', () => {
     jest.useRealTimers();
 
     const error = new Error('Transformer initialization failed');
-    const unhandledRejections = [];
-    const onUnhandledRejection = reason => {
+    const unhandledRejections: Array<unknown> = [];
+    const onUnhandledRejection = (reason: unknown) => {
       unhandledRejections.push(reason);
     };
 
-    Transformer.mockImplementation(() => {
+    MockTransformer.mockImplementation(() => {
       throw error;
     });
     process.on('unhandledRejection', onUnhandledRejection);
